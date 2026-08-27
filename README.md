@@ -15,6 +15,8 @@ BetterBatter/
 
 ## Synchronization
 
-- `sync-subtrees.yml`: 5분마다 `ui/main`의 새 커밋을 가져옵니다.
+- `BetterBatter/ui`의 `sync-root.yml`: `ui/main`에 push될 때마다 루트 저장소의
+  `ui/` subtree를 즉시 최신화합니다.
+- `sync-subtrees.yml`: 자동 동기화에 문제가 생겼을 때 수동으로 실행하는 복구용
+  워크플로입니다.
 - `mirror-gitlab.yml`: 루트 저장소의 브랜치와 태그를 SSAFY GitLab 저장소로 전송합니다.
-
