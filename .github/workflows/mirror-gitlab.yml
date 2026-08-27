@@ -41,6 +41,5 @@ jobs:
           git remote add gitlab \
             "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPOSITORY#https://}"
 
-          git push --prune gitlab "refs/heads/*:refs/heads/*"
-          git push --prune gitlab "refs/tags/*:refs/tags/*"
-
+          git push --prune gitlab "+refs/heads/*:refs/heads/*"
+          git push --prune gitlab "+refs/tags/*:refs/tags/*"
