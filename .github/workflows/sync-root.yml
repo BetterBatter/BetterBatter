@@ -25,6 +25,7 @@ jobs:
           ref: main
           fetch-depth: 0
           token: ${{ secrets.ROOT_SYNC_TOKEN }}
+          persist-credentials: false
 
       - name: Pull latest UI subtree
         id: sync
@@ -57,4 +58,11 @@ jobs:
 
       - name: Push updated root
         if: steps.sync.outputs.changed == 'true'
-        run: git push origin HEAD:main
+        shell: bash
+        env:
+          ROOT_SYNC_TOKEN: ${{ secrets.ROOT_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          basic_auth="$(printf 'x-access-token:%s' "$ROOT_SYNC_TOKEN" | base64 -w 0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic_auth}" \
+            push origin HEAD:main
