@@ -38,6 +38,57 @@ jobs:
             repository.git
 
           cd repository.git
+
+          export FILTER_BRANCH_SQUELCH_WARNING=1
+          git filter-branch --force --env-filter '
+            canonical_name() {
+              case "$1" in
+                "Junyou Park") printf "%s" "박준유" ;;
+                "Ryan Min"|"RyanMin") printf "%s" "민경철" ;;
+                "HJ") printf "%s" "손현준" ;;
+                "DESKTOP-UB20P0O\SSAFY") printf "%s" "기하영" ;;
+                "Juwon") printf "%s" "나주원" ;;
+                "윤선민") printf "%s" "윤선민" ;;
+                *) printf "%s" "$1" ;;
+              esac
+            }
+
+            GIT_AUTHOR_NAME="$(canonical_name "$GIT_AUTHOR_NAME")"
+            GIT_COMMITTER_NAME="$(canonical_name "$GIT_COMMITTER_NAME")"
+            export GIT_AUTHOR_NAME GIT_COMMITTER_NAME
+          ' --tag-name-filter cat -- --all
+
+          git for-each-ref --format="delete %(refname)" refs/original/ |
+            git update-ref --stdin
+
+          rewritten_names="$(git log --all --format="%an%n%cn" | sort -u)"
+
+          for old_name in \
+            "Junyou Park" \
+            "Ryan Min" \
+            "RyanMin" \
+            "HJ" \
+            "DESKTOP-UB20P0O\SSAFY" \
+            "Juwon"; do
+            if grep -Fqx "$old_name" <<< "$rewritten_names"; then
+              echo "Author rewrite failed for: $old_name" >&2
+              exit 1
+            fi
+          done
+
+          for expected_name in \
+            "박준유" \
+            "민경철" \
+            "손현준" \
+            "기하영" \
+            "나주원" \
+            "윤선민"; do
+            if ! grep -Fqx "$expected_name" <<< "$rewritten_names"; then
+              echo "Expected author is missing after rewrite: $expected_name" >&2
+              exit 1
+            fi
+          done
+
           git remote add gitlab \
             "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPOSITORY#https://}"
 
