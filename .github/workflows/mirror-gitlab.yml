@@ -11,6 +11,8 @@ on:
     secrets:
       GITLAB_TOKEN:
         required: true
+      GITLAB_AUTHOR_EMAIL_MAP:
+        required: true
 
 permissions:
   contents: read
@@ -29,6 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_AUTHOR_EMAIL_MAP: ${{ secrets.GITLAB_AUTHOR_EMAIL_MAP }}
           GITLAB_REPOSITORY: https://lab.ssafy.com/s15-bigdata-recom-sub1/S15P21B203.git
         run: |
           set -euo pipefail
@@ -53,9 +56,28 @@ jobs:
               esac
             }
 
+            canonical_email() {
+              target_name="$1"
+              current_email="$2"
+              tab="$(printf "\t")"
+              mapped_line="$(
+                printf "%s\n" "$GITLAB_AUTHOR_EMAIL_MAP" |
+                  grep -F -m1 "${target_name}${tab}" || true
+              )"
+
+              if [ -n "$mapped_line" ]; then
+                printf "%s\n" "$mapped_line" | cut -f2-
+              else
+                printf "%s" "$current_email"
+              fi
+            }
+
             GIT_AUTHOR_NAME="$(canonical_name "$GIT_AUTHOR_NAME")"
             GIT_COMMITTER_NAME="$(canonical_name "$GIT_COMMITTER_NAME")"
-            export GIT_AUTHOR_NAME GIT_COMMITTER_NAME
+            GIT_AUTHOR_EMAIL="$(canonical_email "$GIT_AUTHOR_NAME" "$GIT_AUTHOR_EMAIL")"
+            GIT_COMMITTER_EMAIL="$(canonical_email "$GIT_COMMITTER_NAME" "$GIT_COMMITTER_EMAIL")"
+            export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL
+            export GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
           ' --tag-name-filter cat -- --all
 
           git for-each-ref --format="delete %(refname)" refs/original/ |
@@ -88,6 +110,33 @@ jobs:
               exit 1
             fi
           done
+
+          rewritten_identities="$(
+            git log --all --format="%an%x09%ae%n%cn%x09%ce" | sort -u
+          )"
+          tab="$(printf "\t")"
+
+          while IFS="$tab" read -r expected_name expected_email; do
+            if [ -z "$expected_name" ] || [ -z "$expected_email" ]; then
+              echo "Invalid author email mapping" >&2
+              exit 1
+            fi
+
+            expected_identity="${expected_name}${tab}${expected_email}"
+            if ! grep -Fqx "$expected_identity" <<< "$rewritten_identities"; then
+              echo "Expected author email is missing for: $expected_name" >&2
+              exit 1
+            fi
+
+            unexpected_identities="$(
+              grep -F "${expected_name}${tab}" <<< "$rewritten_identities" |
+                grep -Fvx "$expected_identity" || true
+            )"
+            if [ -n "$unexpected_identities" ]; then
+              echo "Unexpected author email remains for: $expected_name" >&2
+              exit 1
+            fi
+          done <<< "$GITLAB_AUTHOR_EMAIL_MAP"
 
           git remote add gitlab \
             "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPOSITORY#https://}"
